@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, useInput, useStdout } from 'ink';
 import { Select } from '@inkjs/ui';
 import type { FormatPreset } from '../constants.js';
 import type { VideoInfo } from '../lib/downloader.js';
@@ -32,6 +32,8 @@ export function FormatPicker({
   onBack: () => void;
 }) {
   const [selectedId, setSelectedId] = useState(presets[0]?.id ?? '');
+  const { stdout } = useStdout();
+  const height = stdout?.rows || 24;
 
   const options = useMemo(
     () =>
@@ -56,28 +58,30 @@ export function FormatPicker({
   });
 
   return (
-    <Box flexDirection="column" padding={1}>
-      <Text bold>{videoInfo.title}</Text>
-      <Text color="gray">
-        {videoInfo.uploader ? `${videoInfo.uploader} • ` : ''}
-        {formatDuration(videoInfo.duration) ?? 'Unknown duration'}
-      </Text>
-      <Box marginTop={1}>
-        <Text>Select a format:</Text>
-      </Box>
-      <Select
-        options={options}
-        defaultValue={selectedId}
-        visibleOptionCount={5}
-        onChange={setSelectedId}
-      />
-      {selectedPreset ? (
+    <Box width="100%" height={height - 2} justifyContent="center" alignItems="center">
+      <Box flexDirection="column" padding={1}>
+        <Text bold>{videoInfo.title}</Text>
+        <Text color="gray">
+          {videoInfo.uploader ? `${videoInfo.uploader} • ` : ''}
+          {formatDuration(videoInfo.duration) ?? 'Unknown duration'}
+        </Text>
         <Box marginTop={1}>
-          <Text color="gray">{selectedPreset.description}</Text>
+          <Text>Select a format:</Text>
         </Box>
-      ) : null}
-      <Box marginTop={1}>
-        <Text color="gray">Use arrow keys, Enter to download, B to go back.</Text>
+        <Select
+          options={options}
+          defaultValue={selectedId}
+          visibleOptionCount={5}
+          onChange={setSelectedId}
+        />
+        {selectedPreset ? (
+          <Box marginTop={1}>
+            <Text color="gray">{selectedPreset.description}</Text>
+          </Box>
+        ) : null}
+        <Box marginTop={1}>
+          <Text color="gray">Use arrow keys, Enter to download, B to go back.</Text>
+        </Box>
       </Box>
     </Box>
   );

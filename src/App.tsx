@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Box, Text, useApp } from 'ink';
+import { Box, Text, useApp, useInput } from 'ink';
 import { FORMAT_PRESETS, getDefaultDownloadDirectory, type FormatPreset } from './constants.js';
 import {
   downloadVideo,
@@ -56,6 +56,17 @@ export function App() {
   const [downloadAttempt, setDownloadAttempt] = useState(0);
   const activeDownloadRef = useRef<DownloadTask | null>(null);
   const metadataRequestIdRef = useRef(0);
+
+  useInput((input, key) => {
+    if (input.toLowerCase() === 'c' && key.ctrl) {
+      const activeDownload = activeDownloadRef.current;
+      if (activeDownload) {
+        void activeDownload.cancel().finally(() => exit());
+        return;
+      }
+      exit();
+    }
+  });
 
   useEffect(() => {
     const onSigint = () => {
