@@ -26,6 +26,18 @@ export const FORMAT_PRESETS: FormatPreset[] = [
     requiresFfmpeg: true,
   },
   {
+    id: 'uhd-4k',
+    label: '4K / UHD',
+    description: 'Prefer the best video up to 2160p, merged when separate streams are needed.',
+    args: [
+      '-f',
+      'bestvideo[height<=2160]+bestaudio/best[height<=2160]/best',
+      '--merge-output-format',
+      'mkv',
+    ],
+    requiresFfmpeg: true,
+  },
+  {
     id: 'mp4-1080',
     label: 'MP4 1080p',
     description: 'Prefer MP4 video/audio streams up to 1080p.',
