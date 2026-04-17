@@ -4,7 +4,7 @@ import path from 'node:path';
 export const APP_DIR_NAME = '.yt-dlp-tui';
 export const APP_NAME = 'yvm-yt';
 export const OUTPUT_TEMPLATE = '%(title).180B [%(id)s].%(ext)s';
-export const YTDLP_COMMON_ARGS = ['--no-playlist', '--newline'];
+export const YTDLP_COMMON_ARGS = ['--no-playlist', '--newline', '--js-runtimes', 'node'];
 
 export const link = (text: string, url: string) =>
   `\u001B]8;;${url}\u001B\\${text}\u001B]8;;\u001B\\`;

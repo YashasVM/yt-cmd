@@ -14,14 +14,36 @@ Minimal terminal UI for `yt-dlp` built with Ink.
 ```bash
 bun install
 bun run check
-bun run build
+npm run build
 bun run dev
+```
+
+## Run As A CLI
+
+For local testing with the exact package-manager commands:
+
+```bash
+npm link
+bun link
+```
+
+After that, from any directory on your machine:
+
+```bash
+npx yvm-yt
+bunx yvm-yt
 ```
 
 ## Publish
 
-The published package entry point is built with:
+The published package is built automatically when you pack or publish:
 
 ```bash
-bun build bin/index.ts --outdir dist --target node
+npm pack
+```
+
+To make `npx yvm-yt` and `bunx yvm-yt` work on other machines without linking, publish it to npm:
+
+```bash
+npm publish
 ```

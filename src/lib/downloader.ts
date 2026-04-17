@@ -188,7 +188,7 @@ export async function fetchVideoInfo(
 ): Promise<VideoInfo> {
   const binaryPath = await resolveYtDlpBinary(onBinaryStatus);
   const ytDlp = new YtDlpWrap(binaryPath);
-  const info = await ytDlp.getVideoInfo(url);
+  const info = await ytDlp.getVideoInfo([...YTDLP_COMMON_ARGS, url]);
 
   return {
     id: String(info.id ?? ''),

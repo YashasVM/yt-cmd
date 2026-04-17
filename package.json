@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "yvm-yt": "./dist/index.js"
+    "yvm-yt": "./dist/bin/index.js"
   },
   "files": [
     "dist"
@@ -15,8 +15,9 @@
   },
   "scripts": {
     "dev": "bun run bin/index.ts",
-    "build": "bun build bin/index.ts --outdir dist --target node",
-    "check": "tsc --noEmit"
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@inkjs/ui": "^2.0.0",
