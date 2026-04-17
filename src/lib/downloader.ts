@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdir, readdir, rm } from 'node:fs/promises';
+import { mkdir, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { FormatPreset } from '../constants.js';
 import {
@@ -106,6 +106,44 @@ function sanitizeProgress(progress: {
   };
 }
 
+async function ensureOutputDirectory(outputDirectory: string) {
+  try {
+    const directoryStat = await stat(outputDirectory);
+    if (!directoryStat.isDirectory()) {
+      throw new Error(`Download path is not a directory: ${outputDirectory}`);
+    }
+
+    return;
+  } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code !== 'ENOENT'
+    ) {
+      throw error;
+    }
+  }
+
+  try {
+    await mkdir(outputDirectory, { recursive: true });
+  } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === 'EEXIST'
+    ) {
+      const directoryStat = await stat(outputDirectory);
+      if (directoryStat.isDirectory()) {
+        return;
+      }
+    }
+
+    throw error;
+  }
+}
+
 async function cleanupPartialFiles(outputDirectory: string, videoId: string) {
   try {
     const entries = await readdir(outputDirectory, { withFileTypes: true });
@@ -191,7 +229,7 @@ export function downloadVideo({
       ensureFfmpegInstalled();
     }
 
-    await mkdir(outputDirectory, { recursive: true });
+    await ensureOutputDirectory(outputDirectory);
     const binaryPath = await resolveYtDlpBinary(callbacks.onBinaryStatus);
     const ytDlp = new YtDlpWrap(binaryPath);
     const args = [
