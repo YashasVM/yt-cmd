@@ -49,6 +49,8 @@ export function Welcome({
     [],
   );
 
+  const artWidth = useMemo(() => Math.max(...art.split('\n').map(line => line.length)), [art]);
+
   return (
     <Box width="100%" height={height - 2} justifyContent="center" alignItems="center">
       <Box flexDirection="column" padding={1}>
@@ -59,29 +61,42 @@ export function Welcome({
             <Text>{link('github.com/YashasVM', 'https://github.com/YashasVM')}</Text>
           </Box>
         </Box>
-        <Box marginTop={1} flexDirection="column">
-          <Text>Paste YouTube URL:</Text>
-          <TextInput
-            defaultValue={value}
-            isDisabled={isLoading}
-            placeholder="https://youtu.be/..."
-            onChange={(nextValue) => {
-              setValue(nextValue);
-              if (error) {
-                setError(null);
-              }
-            }}
-            onSubmit={(submittedValue) => {
-              const trimmed = submittedValue.trim();
-              if (!isValidYouTubeUrl(trimmed)) {
-                setError('Enter a valid youtube.com or youtu.be URL.');
-                return;
-              }
+        <Box 
+          marginTop={2} 
+          borderStyle="round" 
+          borderColor="gray" 
+          paddingX={2} 
+          paddingY={1}
+          flexDirection="column"
+          width={artWidth}
+        >
+          <Box marginBottom={1}>
+            <Text color="cyan" bold>► </Text>
+            <Text bold>Paste YouTube URL</Text>
+          </Box>
+          <Box paddingLeft={2}>
+            <TextInput
+              defaultValue={value}
+              isDisabled={isLoading}
+              placeholder="https://youtu.be/..."
+              onChange={(nextValue) => {
+                setValue(nextValue);
+                if (error) {
+                  setError(null);
+                }
+              }}
+              onSubmit={(submittedValue) => {
+                const trimmed = submittedValue.trim();
+                if (!isValidYouTubeUrl(trimmed)) {
+                  setError('Enter a valid youtube.com or youtu.be URL.');
+                  return;
+                }
 
-              setError(null);
-              onNext(trimmed);
-            }}
-          />
+                setError(null);
+                onNext(trimmed);
+              }}
+            />
+          </Box>
         </Box>
         {error ? (
           <Box marginTop={1}>
