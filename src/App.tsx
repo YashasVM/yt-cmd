@@ -10,6 +10,7 @@ import {
   type DownloadTask,
   type VideoInfo,
 } from './lib/downloader.js';
+import { InvalidVideoUrlError } from './lib/url.js';
 import { Done, type DoneState } from './screens/Done.js';
 import { Downloading } from './screens/Downloading.js';
 import { FormatPicker } from './screens/FormatPicker.js';
@@ -19,6 +20,10 @@ type Screen = 'welcome' | 'format-picker' | 'downloading' | 'done';
 
 function humanizeError(error: unknown) {
   if (error instanceof MissingFfmpegError) {
+    return error.message;
+  }
+
+  if (error instanceof InvalidVideoUrlError) {
     return error.message;
   }
 

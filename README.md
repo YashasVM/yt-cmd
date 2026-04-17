@@ -1,79 +1,125 @@
 # yvm-yt
 
-Minimal terminal UI for `yt-dlp` built with Ink.
+Terminal UI for downloading YouTube videos with `yt-dlp`.
 
-## Requirements
+## Install And Run
 
-- Node.js `18+`
-- `ffmpeg` for merged video downloads and MP3 extraction
-- An interactive terminal
+This section is for someone who just wants to use the app.
 
-## Features
+### 1. Install Node.js
 
-- Paste a YouTube URL
-- Pick a curated download preset
-- Download in `4K / UHD`, `1080p`, `720p`, or audio-only presets
-- Watch live download progress
-- Auto-detect or download the `yt-dlp` binary
-- Save downloads to your `Downloads` folder
+You need Node.js `18` or newer because the app is launched with `npx`.
 
-## Usage
+Download Node.js from `https://nodejs.org/`.
 
-After publishing:
+### 2. Install ffmpeg
+
+`ffmpeg` is required for:
+
+- `4K / UHD`
+- `Best quality`
+- `MP4 1080p`
+- `MP4 720p`
+- `Audio MP3`
+
+Install it with one of these:
+
+```bash
+# Windows (winget)
+winget install Gyan.FFmpeg
+
+# macOS (Homebrew)
+brew install ffmpeg
+
+# Ubuntu / Debian
+sudo apt install ffmpeg
+```
+
+### 3. Run the app
 
 ```bash
 npx yvm-yt
+```
+
+If you use Bun instead of Node:
+
+```bash
 bunx yvm-yt
 ```
 
-For local development:
+### 4. Use it
 
-```bash
-bun run dev
-```
+1. Paste a YouTube URL.
+2. Pick a format.
+3. Wait for the download to finish.
 
-## Development
+Downloads are saved to your default `Downloads` folder.
+
+### Available formats
+
+- `Best quality`: highest available quality with merge when needed
+- `4K / UHD`: up to `2160p`, merged to `mkv`
+- `MP4 1080p`: MP4-friendly video/audio up to `1080p`
+- `MP4 720p`: MP4-friendly video/audio up to `720p`
+- `Audio MP3`: extracts audio and converts to MP3
+- `Original audio`: best audio-only stream without conversion
+
+### Notes
+
+- The app accepts only `http(s)` YouTube URLs.
+- If `yt-dlp` is not installed globally, the app downloads its own binary automatically.
+- You must run it in an interactive terminal.
+
+## Developer Guide
+
+This section is for working on the project itself.
+
+### Install dependencies
 
 ```bash
 bun install
-bun run check
-npm run build
+npm install
+```
+
+`bun install` maintains `bun.lock`.
+
+`npm install` maintains `package-lock.json` so `npm audit` and npm-based packaging work correctly.
+
+### Local development
+
+```bash
 bun run dev
 ```
 
-## Local CLI Testing
+### Validate the project
 
-For local testing with the exact package-manager commands:
+```bash
+npm run check
+npm run build
+npm run audit
+```
+
+### Test the packaged CLI locally
+
+Register the package globally on your machine:
 
 ```bash
 npm link
 bun link
 ```
 
-After that, from any directory on your machine:
+Then run it from any directory:
 
 ```bash
 npx yvm-yt
 bunx yvm-yt
 ```
 
-## Notes
+### Package and publish
 
-- `4K / UHD` uses the best stream up to `2160p` and merges to `mkv`
-- `MP4 1080p` and `MP4 720p` prefer MP4-compatible streams
-- `Audio MP3` converts with `ffmpeg`
-- If `yt-dlp` is not installed globally, the app downloads its own binary automatically
-
-## Publish
-
-The published package is built automatically when you pack or publish:
+Build output is created automatically when you pack or publish.
 
 ```bash
 npm pack
-```
-
-To make `npx yvm-yt` and `bunx yvm-yt` work on other machines without linking, publish it to npm:
-
-```bash
 npm publish
 ```

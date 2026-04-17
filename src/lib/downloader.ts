@@ -13,6 +13,7 @@ import {
   type YtDlpEventEmitter,
   type YtDlpProgressEvent,
 } from './yt-dlp.js';
+import { normalizeAndValidateVideoUrl } from './url.js';
 
 export type VideoInfo = {
   id: string;
@@ -63,7 +64,7 @@ export class DownloadCancelledError extends Error {
 function ensureFfmpegInstalled() {
   const result = spawnSync('ffmpeg', ['-version'], {
     stdio: 'ignore',
-    shell: process.platform === 'win32',
+    windowsHide: true,
   });
 
   if (result.status !== 0) {
@@ -186,9 +187,10 @@ export async function fetchVideoInfo(
   url: string,
   onBinaryStatus?: BinaryStatusHandler,
 ): Promise<VideoInfo> {
+  const safeUrl = normalizeAndValidateVideoUrl(url);
   const binaryPath = await resolveYtDlpBinary(onBinaryStatus);
   const ytDlp = new YtDlpWrap(binaryPath);
-  const info = await ytDlp.getVideoInfo([...YTDLP_COMMON_ARGS, url]);
+  const info = await ytDlp.getVideoInfo([...YTDLP_COMMON_ARGS, '--', safeUrl]);
 
   return {
     id: String(info.id ?? ''),
@@ -209,6 +211,7 @@ export function downloadVideo({
   videoInfo: VideoInfo;
   outputDirectory?: string;
 }, callbacks: DownloadCallbacks = {}): DownloadTask {
+  const safeUrl = normalizeAndValidateVideoUrl(url);
   let emitter: YtDlpEventEmitter | undefined;
   let cleanedUp = false;
   let knownOutputPath: string | undefined;
@@ -239,7 +242,8 @@ export function downloadVideo({
       outputDirectory,
       '-o',
       OUTPUT_TEMPLATE,
-      url,
+      '--',
+      safeUrl,
     ];
 
     emitter = ytDlp.exec(args, undefined, controller.signal);

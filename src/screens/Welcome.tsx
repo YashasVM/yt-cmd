@@ -3,21 +3,7 @@ import figlet from 'figlet';
 import { Box, Text, useStdout } from 'ink';
 import { Spinner, TextInput } from '@inkjs/ui';
 import { link } from '../constants.js';
-
-export function isValidYouTubeUrl(value: string) {
-  try {
-    const url = new URL(value.trim());
-    const hostname = url.hostname.toLowerCase();
-    return (
-      hostname === 'youtube.com' ||
-      hostname === 'www.youtube.com' ||
-      hostname === 'm.youtube.com' ||
-      hostname === 'youtu.be'
-    );
-  } catch {
-    return false;
-  }
-}
+import { InvalidVideoUrlError, normalizeAndValidateVideoUrl } from '../lib/url.js';
 
 export function Welcome({
   initialUrl,
@@ -86,14 +72,19 @@ export function Welcome({
                 }
               }}
               onSubmit={(submittedValue) => {
-                const trimmed = submittedValue.trim();
-                if (!isValidYouTubeUrl(trimmed)) {
-                  setError('Enter a valid youtube.com or youtu.be URL.');
+                try {
+                  const safeUrl = normalizeAndValidateVideoUrl(submittedValue);
+                  setError(null);
+                  onNext(safeUrl);
+                } catch (error) {
+                  if (error instanceof InvalidVideoUrlError) {
+                    setError(error.message);
+                    return;
+                  }
+
+                  setError('Enter a valid http(s) YouTube URL.');
                   return;
                 }
-
-                setError(null);
-                onNext(trimmed);
               }}
             />
           </Box>
