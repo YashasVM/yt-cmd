@@ -61,6 +61,18 @@ export class DownloadCancelledError extends Error {
   }
 }
 
+const METADATA_TIMEOUT_MS = 20_000;
+const YTDLP_METADATA_ARGS = [
+  '--no-playlist',
+  '--skip-download',
+  '--no-check-formats',
+  '--no-warnings',
+  '--socket-timeout',
+  '15',
+] as const;
+const METADATA_TEMPLATE =
+  '{"id":%(id)j,"title":%(title)j,"duration":%(duration)j,"uploader":%(uploader|)j}';
+
 function ensureFfmpegInstalled() {
   const result = spawnSync('ffmpeg', ['-version'], {
     stdio: 'ignore',
@@ -190,7 +202,46 @@ export async function fetchVideoInfo(
   const safeUrl = normalizeAndValidateVideoUrl(url);
   const binaryPath = await resolveYtDlpBinary(onBinaryStatus);
   const ytDlp = new YtDlpWrap(binaryPath);
-  const info = await ytDlp.getVideoInfo([...YTDLP_COMMON_ARGS, '--', safeUrl]);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), METADATA_TIMEOUT_MS);
+
+  let stdout: string;
+  try {
+    stdout = await ytDlp.execPromise(
+      [
+        ...YTDLP_METADATA_ARGS,
+        '--print',
+        METADATA_TEMPLATE,
+        safeUrl,
+      ],
+      { windowsHide: true },
+      controller.signal,
+    );
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error('Reading video info timed out. Check the URL or your connection and try again.');
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  const metadataLine = stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+
+  if (!metadataLine) {
+    throw new Error('yt-dlp returned empty metadata.');
+  }
+
+  const info = JSON.parse(metadataLine) as {
+    id?: string;
+    title?: string;
+    duration?: number;
+    uploader?: string;
+  };
 
   return {
     id: String(info.id ?? ''),

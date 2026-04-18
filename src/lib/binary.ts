@@ -7,6 +7,9 @@ import { YtDlpWrap } from './yt-dlp.js';
 
 export type BinaryStatusHandler = (message: string | null) => void;
 
+let resolvedBinaryPath: string | null = null;
+let pendingBinaryResolution: Promise<string> | null = null;
+
 function getCachedBinaryPath() {
   const extension = os.platform() === 'win32' ? '.exe' : '';
   return path.join(getAppDirectory(), `yt-dlp${extension}`);
@@ -30,14 +33,14 @@ async function isWorkingBinary(binaryPath: string) {
   }
 }
 
-export async function resolveYtDlpBinary(onStatus?: BinaryStatusHandler) {
-  if (await isWorkingBinary('yt-dlp')) {
-    return 'yt-dlp';
-  }
-
+async function resolveYtDlpBinaryUncached(onStatus?: BinaryStatusHandler) {
   const cachedBinary = getCachedBinaryPath();
   if ((await isExecutable(cachedBinary)) && (await isWorkingBinary(cachedBinary))) {
     return cachedBinary;
+  }
+
+  if (await isWorkingBinary('yt-dlp')) {
+    return 'yt-dlp';
   }
 
   await mkdir(path.dirname(cachedBinary), { recursive: true });
@@ -55,4 +58,27 @@ export async function resolveYtDlpBinary(onStatus?: BinaryStatusHandler) {
   }
 
   return cachedBinary;
+}
+
+export async function resolveYtDlpBinary(onStatus?: BinaryStatusHandler) {
+  if (resolvedBinaryPath) {
+    return resolvedBinaryPath;
+  }
+
+  if (!pendingBinaryResolution) {
+    pendingBinaryResolution = resolveYtDlpBinaryUncached(onStatus)
+      .then((binaryPath) => {
+        resolvedBinaryPath = binaryPath;
+        return binaryPath;
+      })
+      .finally(() => {
+        pendingBinaryResolution = null;
+      });
+  }
+
+  return pendingBinaryResolution;
+}
+
+export function prewarmYtDlpBinary() {
+  return resolveYtDlpBinary().catch(() => undefined);
 }

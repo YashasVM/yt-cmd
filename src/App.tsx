@@ -10,6 +10,7 @@ import {
   type DownloadTask,
   type VideoInfo,
 } from './lib/downloader.js';
+import { prewarmYtDlpBinary } from './lib/binary.js';
 import { InvalidVideoUrlError } from './lib/url.js';
 import { Done, type DoneState } from './screens/Done.js';
 import { Downloading } from './screens/Downloading.js';
@@ -72,6 +73,10 @@ export function App() {
       exit();
     }
   });
+
+  useEffect(() => {
+    void prewarmYtDlpBinary();
+  }, []);
 
   useEffect(() => {
     const onSigint = () => {

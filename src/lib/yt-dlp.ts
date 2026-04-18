@@ -28,6 +28,11 @@ export type YtDlpEventEmitter = EventEmitter & {
 type YtDlpInstance = {
   getVersion(): Promise<string>;
   getVideoInfo(args: string | string[]): Promise<Record<string, unknown>>;
+  execPromise(
+    args?: string[],
+    options?: SpawnOptionsWithoutStdio,
+    abortSignal?: AbortSignal | null,
+  ): Promise<string>;
   exec(
     args?: string[],
     options?: SpawnOptionsWithoutStdio,
