@@ -3,15 +3,12 @@ import { Box, Text, useStdout } from 'ink';
 import { ProgressBar, Spinner } from '@inkjs/ui';
 import type { DownloadProgress, VideoInfo } from '../lib/downloader.js';
 
-function renderManualBar(percent: number) {
-  const clamped = Math.max(0, Math.min(100, percent));
-  const filled = Math.round((clamped / 100) * 30);
-  const empty = 30 - filled;
-  return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${Math.round(clamped)}%`;
-}
-
 function progressMeta(progress: DownloadProgress) {
-  return [progress.currentSpeed ?? '0 MB/s', `ETA ${progress.eta ?? '--s'}`].join(' • ');
+  return [
+    `${Math.round(progress.percent)}%`,
+    progress.currentSpeed ? `Speed ${progress.currentSpeed}` : 'Speed --',
+    progress.eta ? `ETA ${progress.eta}` : 'ETA --',
+  ].join(' | ');
 }
 
 export function Downloading({
@@ -38,17 +35,21 @@ export function Downloading({
           {binaryStatus ? (
             <Spinner label={binaryStatus} />
           ) : progress ? (
-            <Text>{`${renderManualBar(percent)} • ${progressMeta(progress)}`}</Text>
+            <Text>{progressMeta(progress)}</Text>
           ) : (
             <Spinner label="Starting download..." />
           )}
         </Box>
-        <Box marginTop={1}>
-          <ProgressBar value={percent} />
-        </Box>
+        {binaryStatus ? null : (
+          <Box marginTop={1}>
+            <ProgressBar value={percent} />
+          </Box>
+        )}
         <Box marginTop={1}>
           <Text color="gray">
-            {progress?.totalSize ? `Total size ${progress.totalSize}` : 'Waiting for yt-dlp progress events...'}
+            {progress?.totalSize
+              ? `Total size ${progress.totalSize}`
+              : 'Waiting for yt-dlp progress events...'}
           </Text>
         </Box>
         <Box marginTop={1}>

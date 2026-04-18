@@ -11,7 +11,6 @@ import { resolveYtDlpBinary, type BinaryStatusHandler } from './binary.js';
 import {
   YtDlpWrap,
   type YtDlpEventEmitter,
-  type YtDlpProgressEvent,
 } from './yt-dlp.js';
 import { normalizeAndValidateVideoUrl } from './url.js';
 
@@ -105,18 +104,55 @@ function extractOutputPath(eventData: string) {
   return undefined;
 }
 
-function sanitizeProgress(progress: {
-  percent?: number;
-  currentSpeed?: string;
-  eta?: string;
-  totalSize?: string;
-}) {
-  return {
-    percent: typeof progress.percent === 'number' ? progress.percent : 0,
-    currentSpeed: progress.currentSpeed,
-    eta: progress.eta,
-    totalSize: progress.totalSize,
-  };
+function sanitizeProgressValue(value?: string) {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  if (!normalized || /^unknown/i.test(normalized)) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
+function parseDownloadProgressEvent(eventData: string): Partial<DownloadProgress> | undefined {
+  const normalized = eventData.trim();
+
+  const etaMatch = normalized.match(
+    /^(\d+(?:\.\d+)?)%\s+of\s+(~?\s*.+?)\s+at\s+(.+?)\s+ETA\s+(.+)$/i,
+  );
+  if (etaMatch) {
+    return {
+      percent: Number.parseFloat(etaMatch[1]),
+      totalSize: sanitizeProgressValue(etaMatch[2]?.replace(/^~\s*/, '')),
+      currentSpeed: sanitizeProgressValue(etaMatch[3]),
+      eta: sanitizeProgressValue(etaMatch[4]),
+    };
+  }
+
+  const completedMatch = normalized.match(
+    /^(\d+(?:\.\d+)?)%\s+of\s+(~?\s*.+?)\s+in\s+(.+?)\s+at\s+(.+)$/i,
+  );
+  if (completedMatch) {
+    return {
+      percent: Number.parseFloat(completedMatch[1]),
+      totalSize: sanitizeProgressValue(completedMatch[2]?.replace(/^~\s*/, '')),
+      currentSpeed: sanitizeProgressValue(completedMatch[4]),
+      eta: undefined,
+    };
+  }
+
+  const sizeOnlyMatch = normalized.match(/^(\d+(?:\.\d+)?)%\s+of\s+(~?\s*.+)$/i);
+  if (sizeOnlyMatch) {
+    return {
+      percent: Number.parseFloat(sizeOnlyMatch[1]),
+      totalSize: sanitizeProgressValue(sizeOnlyMatch[2]?.replace(/^~\s*/, '')),
+    };
+  }
+
+  return undefined;
 }
 
 async function ensureOutputDirectory(outputDirectory: string) {
@@ -267,6 +303,7 @@ export function downloadVideo({
   let cleanedUp = false;
   let knownOutputPath: string | undefined;
   let wasCancelled = false;
+  let latestProgress: DownloadProgress = { percent: 0 };
   const controller = new AbortController();
 
   const cleanup = async () => {
@@ -299,17 +336,27 @@ export function downloadVideo({
 
     emitter = ytDlp.exec(args, undefined, controller.signal);
 
-    emitter.on('progress', (progress: YtDlpProgressEvent) => {
-      callbacks.onProgress?.(sanitizeProgress(progress));
-    });
-
-    emitter.on('ytDlpEvent', (_eventType: string, eventData: string) => {
+    emitter.on('ytDlpEvent', (eventType: string, eventData: string) => {
       const candidate = extractOutputPath(eventData);
       if (candidate) {
         knownOutputPath = path.isAbsolute(candidate)
           ? candidate
           : path.join(outputDirectory, candidate);
         callbacks.onOutputPath?.(knownOutputPath);
+      }
+
+      if (eventType !== 'download') {
+        return;
+      }
+
+      const parsedProgress = parseDownloadProgressEvent(eventData);
+      if (parsedProgress) {
+        latestProgress = {
+          ...latestProgress,
+          ...parsedProgress,
+          percent: parsedProgress.percent ?? latestProgress.percent,
+        };
+        callbacks.onProgress?.(latestProgress);
       }
     });
 
