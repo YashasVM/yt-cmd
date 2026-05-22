@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import { mkdir, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { FormatPreset } from '../constants.js';
@@ -8,11 +7,14 @@ import {
   YTDLP_COMMON_ARGS,
 } from '../constants.js';
 import { resolveYtDlpBinary, type BinaryStatusHandler } from './binary.js';
+import { ensureFfmpegAvailable, MissingFfmpegError } from './dependencies.js';
 import {
   YtDlpWrap,
   type YtDlpEventEmitter,
 } from './yt-dlp.js';
 import { normalizeAndValidateVideoUrl } from './url.js';
+
+export { MissingFfmpegError };
 
 export type VideoInfo = {
   id: string;
@@ -46,13 +48,6 @@ export type DownloadTask = {
   cancel: () => Promise<void>;
 };
 
-export class MissingFfmpegError extends Error {
-  constructor() {
-    super('Install ffmpeg: sudo apt install ffmpeg / brew install ffmpeg');
-    this.name = 'MissingFfmpegError';
-  }
-}
-
 export class DownloadCancelledError extends Error {
   constructor() {
     super('Download cancelled.');
@@ -71,17 +66,6 @@ const YTDLP_METADATA_ARGS = [
 ] as const;
 const METADATA_TEMPLATE =
   '{"id":%(id)j,"title":%(title)j,"duration":%(duration)j,"uploader":%(uploader|)j}';
-
-function ensureFfmpegInstalled() {
-  const result = spawnSync('ffmpeg', ['-version'], {
-    stdio: 'ignore',
-    windowsHide: true,
-  });
-
-  if (result.status !== 0) {
-    throw new MissingFfmpegError();
-  }
-}
 
 function normalizePath(candidate: string) {
   return candidate.replace(/^"|"$/g, '').trim();
@@ -317,15 +301,22 @@ export function downloadVideo({
 
   const promise = (async () => {
     if (preset.requiresFfmpeg) {
-      ensureFfmpegInstalled();
+      ensureFfmpegAvailable();
     }
 
     await ensureOutputDirectory(outputDirectory);
     const binaryPath = await resolveYtDlpBinary(callbacks.onBinaryStatus);
     const ytDlp = new YtDlpWrap(binaryPath);
+
+    // Build args — video presets always merge to mp4 (mkv fallback)
+    const formatArgs = [...preset.args];
+    if (preset.type === 'video') {
+      formatArgs.push('--merge-output-format', 'mp4/mkv');
+    }
+
     const args = [
       ...YTDLP_COMMON_ARGS,
-      ...preset.args,
+      ...formatArgs,
       '--paths',
       outputDirectory,
       '-o',
