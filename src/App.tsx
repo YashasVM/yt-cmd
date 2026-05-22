@@ -12,12 +12,13 @@ import {
 } from './lib/downloader.js';
 import { prewarmYtDlpBinary } from './lib/binary.js';
 import { InvalidVideoUrlError } from './lib/url.js';
+import { DependencyCheck } from './screens/DependencyCheck.js';
 import { Done, type DoneState } from './screens/Done.js';
 import { Downloading } from './screens/Downloading.js';
 import { FormatPicker } from './screens/FormatPicker.js';
 import { Welcome } from './screens/Welcome.js';
 
-type Screen = 'welcome' | 'format-picker' | 'downloading' | 'done';
+type Screen = 'dependency-check' | 'welcome' | 'format-picker' | 'downloading' | 'done';
 
 function humanizeError(error: unknown) {
   if (error instanceof MissingFfmpegError) {
@@ -38,7 +39,7 @@ function humanizeError(error: unknown) {
     }
 
     if (/ffmpeg/i.test(error.message)) {
-      return 'Install ffmpeg: sudo apt install ffmpeg / brew install ffmpeg';
+      return 'ffmpeg is required but not found. Re-launch the app to install it.';
     }
 
     return error.message;
@@ -49,7 +50,7 @@ function humanizeError(error: unknown) {
 
 export function App() {
   const { exit } = useApp();
-  const [screen, setScreen] = useState<Screen>('welcome');
+  const [screen, setScreen] = useState<Screen>('dependency-check');
   const [url, setUrl] = useState('');
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const [format, setFormat] = useState<FormatPreset | null>(null);
@@ -63,6 +64,7 @@ export function App() {
   const activeDownloadRef = useRef<DownloadTask | null>(null);
   const metadataRequestIdRef = useRef(0);
 
+  // Global Ctrl+C handler
   useInput((input, key) => {
     if (input.toLowerCase() === 'c' && key.ctrl) {
       const activeDownload = activeDownloadRef.current;
@@ -74,10 +76,7 @@ export function App() {
     }
   });
 
-  useEffect(() => {
-    void prewarmYtDlpBinary();
-  }, []);
-
+  // SIGINT handler
   useEffect(() => {
     const onSigint = () => {
       const activeDownload = activeDownloadRef.current;
@@ -95,6 +94,7 @@ export function App() {
     };
   }, [exit]);
 
+  // Metadata fetching effect
   useEffect(() => {
     if (!isLoadingMetadata || !url) {
       return;
@@ -137,6 +137,7 @@ export function App() {
     };
   }, [isLoadingMetadata, metadataAttempt, url]);
 
+  // Download effect
   useEffect(() => {
     if (screen !== 'downloading' || !url || !videoInfo || !format) {
       return;
@@ -201,6 +202,8 @@ export function App() {
     };
   }, [downloadAttempt, format, screen, url, videoInfo]);
 
+  // ── Screen transition helpers ──
+
   const startMetadataLookup = (nextUrl: string) => {
     setUrl(nextUrl);
     setVideoInfo(null);
@@ -210,6 +213,14 @@ export function App() {
     setOutputPath(undefined);
     setIsLoadingMetadata(true);
     setMetadataAttempt((attempt) => attempt + 1);
+  };
+
+  const startDownload = () => {
+    setResult(null);
+    setProgress(null);
+    setOutputPath(undefined);
+    setScreen('downloading');
+    setDownloadAttempt((attempt) => attempt + 1);
   };
 
   const retry = () => {
@@ -241,6 +252,20 @@ export function App() {
     setBinaryStatus(null);
   };
 
+  // ── Screen rendering ──
+
+  if (screen === 'dependency-check') {
+    return (
+      <DependencyCheck
+        onReady={() => {
+          setScreen('welcome');
+          // Prewarm yt-dlp binary in background after dep check
+          void prewarmYtDlpBinary();
+        }}
+      />
+    );
+  }
+
   if (screen === 'welcome') {
     return (
       <Welcome
@@ -259,11 +284,7 @@ export function App() {
         presets={FORMAT_PRESETS}
         onNext={(preset) => {
           setFormat(preset);
-          setResult(null);
-          setProgress(null);
-          setOutputPath(undefined);
-          setScreen('downloading');
-          setDownloadAttempt((attempt) => attempt + 1);
+          startDownload();
         }}
         onBack={() => {
           setScreen('welcome');
@@ -273,6 +294,7 @@ export function App() {
     );
   }
 
+
   if (screen === 'downloading' && videoInfo) {
     return (
       <Downloading
@@ -280,6 +302,7 @@ export function App() {
         progress={progress}
         outputPath={outputPath}
         binaryStatus={binaryStatus}
+        presetLabel={format?.label}
       />
     );
   }
