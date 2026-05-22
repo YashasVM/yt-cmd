@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import figlet from 'figlet';
 import { Box, Text, useStdout } from 'ink';
 import { Spinner, TextInput } from '@inkjs/ui';
-import { link } from '../constants.js';
+import { APP_NAME, link } from '../constants.js';
 import { InvalidVideoUrlError, normalizeAndValidateVideoUrl } from '../lib/url.js';
 
 export function Welcome({
@@ -47,17 +47,17 @@ export function Welcome({
             <Text>{link('github.com/YashasVM', 'https://github.com/YashasVM')}</Text>
           </Box>
         </Box>
-        <Box 
-          marginTop={2} 
-          borderStyle="round" 
-          borderColor="gray" 
-          paddingX={2} 
+        <Box
+          marginTop={2}
+          borderStyle="round"
+          borderColor="gray"
+          paddingX={2}
           paddingY={1}
           flexDirection="column"
           width={artWidth}
         >
           <Box marginBottom={1}>
-            <Text color="cyan" bold>► </Text>
+            <Text color="cyan" bold>►  </Text>
             <Text bold>Paste YouTube URL</Text>
           </Box>
           <Box paddingLeft={2}>

@@ -8,7 +8,7 @@ function progressMeta(progress: DownloadProgress) {
     `${Math.round(progress.percent)}%`,
     progress.currentSpeed ? `Speed ${progress.currentSpeed}` : 'Speed --',
     progress.eta ? `ETA ${progress.eta}` : 'ETA --',
-  ].join(' | ');
+  ].join('  ·  ');
 }
 
 export function Downloading({
@@ -16,11 +16,13 @@ export function Downloading({
   progress,
   outputPath,
   binaryStatus,
+  presetLabel,
 }: {
   videoInfo: VideoInfo;
   progress: DownloadProgress | null;
   outputPath?: string;
   binaryStatus?: string | null;
+  presetLabel?: string;
 }) {
   const percent = progress?.percent ?? 0;
   const { stdout } = useStdout();
@@ -30,7 +32,11 @@ export function Downloading({
     <Box width="100%" height={height - 2} justifyContent="center" alignItems="center">
       <Box flexDirection="column" padding={1}>
         <Text bold>{videoInfo.title}</Text>
+        {presetLabel ? (
+          <Text color="gray">{presetLabel}</Text>
+        ) : null}
         {outputPath ? <Text color="gray">{outputPath}</Text> : null}
+
         <Box marginTop={1}>
           {binaryStatus ? (
             <Spinner label={binaryStatus} />
@@ -40,20 +46,23 @@ export function Downloading({
             <Spinner label="Starting download..." />
           )}
         </Box>
+
         {binaryStatus ? null : (
           <Box marginTop={1}>
             <ProgressBar value={percent} />
           </Box>
         )}
+
         <Box marginTop={1}>
           <Text color="gray">
             {progress?.totalSize
               ? `Total size ${progress.totalSize}`
-              : 'Waiting for yt-dlp progress events...'}
+              : 'Waiting for progress data...'}
           </Text>
         </Box>
+
         <Box marginTop={1}>
-          <Text color="gray">Press Ctrl+C to cancel and clean up partial files.</Text>
+          <Text color="gray">Ctrl+C to cancel and clean up partial files.</Text>
         </Box>
       </Box>
     </Box>

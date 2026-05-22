@@ -48,11 +48,16 @@ export function Done({
     return (
       <Box width="100%" height={height - 2} justifyContent="center" alignItems="center">
         <Box flexDirection="column" padding={1}>
-          <Text color="green">Download complete.</Text>
-          <Text bold>{result.title}</Text>
+          <Box>
+            <Text color="green" bold>✓  </Text>
+            <Text color="green">Download complete</Text>
+          </Box>
+          <Box marginTop={1}>
+            <Text bold>{result.title}</Text>
+          </Box>
           <Text color="gray">{result.filePath ?? result.outputDirectory}</Text>
           <Box marginTop={1}>
-            <Text color="gray">Press Enter to download another video, or Q to quit.</Text>
+            <Text color="gray">Enter — download another  ·  Q — quit</Text>
           </Box>
         </Box>
       </Box>
@@ -62,13 +67,20 @@ export function Done({
   return (
     <Box width="100%" height={height - 2} justifyContent="center" alignItems="center">
       <Box flexDirection="column" padding={1}>
-        <Text color="red">Download failed.</Text>
-        {result.title ? <Text bold>{result.title}</Text> : null}
+        <Box>
+          <Text color="red" bold>✗  </Text>
+          <Text color="red">Download failed</Text>
+        </Box>
+        {result.title ? (
+          <Box marginTop={1}>
+            <Text bold>{result.title}</Text>
+          </Box>
+        ) : null}
         <Box marginTop={1}>
           <Text>{result.message}</Text>
         </Box>
         <Box marginTop={1}>
-          <Text color="gray">Press R to retry or Q to quit.</Text>
+          <Text color="gray">R — retry  ·  Q — quit</Text>
         </Box>
       </Box>
     </Box>
