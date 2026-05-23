@@ -229,5 +229,5 @@ MIT — see [LICENSE](LICENSE) for details.
 **Made by [@yashas.vm](https://github.com/YashasVM)**
 
 *YouTube downloads without the hassle. Just paste and go.*
-
+Based on [Yt-Dlp](https://github.com/yt-dlp/yt-dlp)
 </div>
