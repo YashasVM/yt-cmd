@@ -72,25 +72,25 @@ bunx yvm-yt
 
 ```
 ┌─────────────────────┐
-│  Dependency Check    │  Checks Node.js, yt-dlp, ffmpeg
-│                      │  Auto-installs if missing
+│  Dependency Check   │  Checks Node.js, yt-dlp, ffmpeg
+│                     │  Auto-installs if missing
 └──────────┬──────────┘
            ▼
 ┌─────────────────────┐
-│  Welcome             │  Paste a YouTube URL
+│  Welcome            │  Paste a YouTube URL
 └──────────┬──────────┘
            ▼
 ┌─────────────────────┐
-│  Quality Picker      │  ⬆ Best · ✦ 4K · ▸ 1080p · ▸ 720p
-│                      │  ♫ MP3 · ♫ MP3 HQ
+│  Quality Picker     │  ⬆ Best · ✦ 4K · ▸ 1080p · ▸ 720p
+│                     │  ♫ MP3 · ♫ MP3 HQ
 └──────────┬──────────┘
            ▼
 ┌─────────────────────┐
-│  Downloading         │  Progress bar + speed + ETA
+│  Downloading        │  Progress bar + speed + ETA
 └──────────┬──────────┘
            ▼
 ┌─────────────────────┐
-│  Done                │  ✓ File saved to ~/Downloads
+│  Done               │  ✓ File saved to ~/Downloads
 └─────────────────────┘
 ```
 
