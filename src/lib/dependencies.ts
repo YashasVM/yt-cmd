@@ -45,7 +45,7 @@ export function checkYtDlp(): { available: boolean; version?: string } {
 export function checkNodeVersion(): { available: boolean; version?: string } {
   const version = process.version;
   const major = Number.parseInt(version.slice(1).split('.')[0] ?? '0', 10);
-  return { available: major >= 18, version };
+  return { available: major >= 22, version };
 }
 
 /**

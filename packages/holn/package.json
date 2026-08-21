@@ -1,0 +1,19 @@
+{
+  "name": "holen-dl",
+  "version": "1.0.5",
+  "description": "Alias for yvm-yt.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "holen-dl": "cli.js"
+  },
+  "files": [
+    "cli.js"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "yvm-yt": "1.0.4"
+  }
+}

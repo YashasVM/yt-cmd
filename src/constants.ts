@@ -4,7 +4,14 @@ import path from 'node:path';
 export const APP_DIR_NAME = '.yt-dlp-tui';
 export const APP_NAME = 'yvm-yt';
 export const OUTPUT_TEMPLATE = '%(title).180B [%(id)s].%(ext)s';
-export const YTDLP_COMMON_ARGS = ['--no-playlist', '--newline', '--js-runtimes', 'node'];
+export const YTDLP_COMMON_ARGS = [
+  '--no-playlist',
+  '--newline',
+  '--js-runtimes',
+  'node',
+  '--remote-components',
+  'ejs:github',
+];
 
 export const link = (text: string, url: string) =>
   `\u001B]8;;${url}\u001B\\${text}\u001B]8;;\u001B\\`;
@@ -73,6 +80,15 @@ export const FORMAT_PRESETS: FormatPreset[] = [
     requiresFfmpeg: true,
   },
   {
+    id: 'custom',
+    label: 'Custom maximum resolution',
+    icon: '⚙',
+    type: 'video',
+    description: 'Choose any maximum height from 144p to 4320p.',
+    args: [],
+    requiresFfmpeg: true,
+  },
+  {
     id: 'audio-mp3',
     label: 'Audio — MP3',
     icon: '♫',
@@ -91,6 +107,18 @@ export const FORMAT_PRESETS: FormatPreset[] = [
     requiresFfmpeg: true,
   },
 ];
+
+export function createResolutionPreset(height: number): FormatPreset {
+  return {
+    id: `custom-${height}`,
+    label: `Up to ${height}p`,
+    icon: '⚙',
+    type: 'video',
+    description: `Best available video up to ${height}p.`,
+    args: ['-f', `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]`],
+    requiresFfmpeg: true,
+  };
+}
 
 export function getAppDirectory(): string {
   return path.join(os.homedir(), APP_DIR_NAME);

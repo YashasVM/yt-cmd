@@ -1,24 +1,33 @@
 {
   "name": "yvm-yt",
-  "version": "1.0.0",
-  "description": "Terminal UI for downloading YouTube videos — quality picker, auto-installs dependencies, outputs MP4/MP3.",
+  "version": "1.0.4",
+  "description": "Terminal UI for downloading videos with yt-dlp — quality, custom resolution, MP4/MKV, and MP3.",
   "license": "MIT",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YashasVM/yt-cmd.git"
+    "url": "git+https://github.com/YashasVM/yt-cmd.git"
   },
   "homepage": "https://github.com/YashasVM/yt-cmd",
-  "keywords": ["youtube", "yt-dlp", "downloader", "terminal", "tui", "cli", "mp4", "mp3"],
+  "keywords": [
+    "youtube",
+    "yt-dlp",
+    "downloader",
+    "terminal",
+    "tui",
+    "cli",
+    "mp4",
+    "mp3"
+  ],
   "bin": {
-    "yvm-yt": "./dist/bin/index.js",
-    "yt-cmd": "./dist/bin/index.js"
+    "yvm-yt": "dist/bin/index.js",
+    "yt-cmd": "dist/bin/index.js"
   },
   "files": [
     "dist"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "bun run bin/index.ts",

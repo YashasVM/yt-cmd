@@ -1,13 +1,6 @@
-const ALLOWED_VIDEO_HOSTS = new Set([
-  'youtube.com',
-  'www.youtube.com',
-  'm.youtube.com',
-  'youtu.be',
-]);
-
 export class InvalidVideoUrlError extends Error {
   constructor() {
-    super('Enter a valid http(s) YouTube URL.');
+    super('Enter a valid public video URL (http or https).');
     this.name = 'InvalidVideoUrlError';
   }
 }
@@ -35,7 +28,7 @@ export function normalizeAndValidateVideoUrl(value: string) {
     throw new InvalidVideoUrlError();
   }
 
-  if (!ALLOWED_VIDEO_HOSTS.has(url.hostname.toLowerCase())) {
+  if (!url.hostname) {
     throw new InvalidVideoUrlError();
   }
 

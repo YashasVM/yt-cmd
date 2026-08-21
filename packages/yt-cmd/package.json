@@ -1,0 +1,19 @@
+{
+  "name": "yt-cmd",
+  "version": "1.0.0",
+  "description": "Alias for yvm-yt.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "yt-cmd": "cli.js"
+  },
+  "files": [
+    "cli.js"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "yvm-yt": "^1.0.0"
+  }
+}

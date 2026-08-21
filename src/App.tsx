@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
-import { FORMAT_PRESETS, getDefaultDownloadDirectory, type FormatPreset } from './constants.js';
+import {
+  createResolutionPreset,
+  FORMAT_PRESETS,
+  getDefaultDownloadDirectory,
+  type ContainerFormat,
+  type FormatPreset,
+} from './constants.js';
 import {
   downloadVideo,
   DownloadCancelledError,
@@ -13,12 +19,21 @@ import {
 import { prewarmYtDlpBinary } from './lib/binary.js';
 import { InvalidVideoUrlError } from './lib/url.js';
 import { DependencyCheck } from './screens/DependencyCheck.js';
+import { ContainerPicker } from './screens/ContainerPicker.js';
+import { CustomResolutionPicker } from './screens/CustomResolutionPicker.js';
 import { Done, type DoneState } from './screens/Done.js';
 import { Downloading } from './screens/Downloading.js';
 import { FormatPicker } from './screens/FormatPicker.js';
 import { Welcome } from './screens/Welcome.js';
 
-type Screen = 'dependency-check' | 'welcome' | 'format-picker' | 'downloading' | 'done';
+type Screen =
+  | 'dependency-check'
+  | 'welcome'
+  | 'format-picker'
+  | 'resolution-picker'
+  | 'container-picker'
+  | 'downloading'
+  | 'done';
 
 function humanizeError(error: unknown) {
   if (error instanceof MissingFfmpegError) {
@@ -34,6 +49,10 @@ function humanizeError(error: unknown) {
   }
 
   if (error instanceof Error) {
+    if (/403|forbidden/i.test(error.message)) {
+      return 'YouTube refused the video stream (HTTP 403). The download was retried with alternate clients but still failed — check your connection or try again in a few minutes.';
+    }
+
     if (/ENOTFOUND|EAI_AGAIN|timed out|network/i.test(error.message)) {
       return 'Network error. Check your connection and try again.';
     }
@@ -54,6 +73,7 @@ export function App() {
   const [url, setUrl] = useState('');
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const [format, setFormat] = useState<FormatPreset | null>(null);
+  const [container, setContainer] = useState<ContainerFormat>('mp4');
   const [result, setResult] = useState<DoneState | null>(null);
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [outputPath, setOutputPath] = useState<string | undefined>();
@@ -153,6 +173,7 @@ export function App() {
         url,
         preset: format,
         videoInfo,
+        container,
         outputDirectory: getDefaultDownloadDirectory(),
       },
       {
@@ -200,7 +221,7 @@ export function App() {
         activeDownloadRef.current = null;
       }
     };
-  }, [downloadAttempt, format, screen, url, videoInfo]);
+  }, [container, downloadAttempt, format, screen, url, videoInfo]);
 
   // ── Screen transition helpers ──
 
@@ -208,6 +229,7 @@ export function App() {
     setUrl(nextUrl);
     setVideoInfo(null);
     setFormat(null);
+    setContainer('mp4');
     setResult(null);
     setProgress(null);
     setOutputPath(undefined);
@@ -245,6 +267,7 @@ export function App() {
     setUrl('');
     setVideoInfo(null);
     setFormat(null);
+    setContainer('mp4');
     setResult(null);
     setProgress(null);
     setOutputPath(undefined);
@@ -255,15 +278,15 @@ export function App() {
   // ── Screen rendering ──
 
   if (screen === 'dependency-check') {
-    return (
-      <DependencyCheck
-        onReady={() => {
-          setScreen('welcome');
-          // Prewarm yt-dlp binary in background after dep check
-          void prewarmYtDlpBinary();
-        }}
-      />
-    );
+      return (
+        <DependencyCheck
+          onReady={() => {
+            setScreen('welcome');
+            // Prewarm and refresh the yt-dlp binary in the background.
+            void prewarmYtDlpBinary(setBinaryStatus);
+          }}
+        />
+      );
   }
 
   if (screen === 'welcome') {
@@ -283,13 +306,51 @@ export function App() {
         videoInfo={videoInfo}
         presets={FORMAT_PRESETS}
         onNext={(preset) => {
+          if (preset.id === 'custom') {
+            setScreen('resolution-picker');
+            return;
+          }
+
           setFormat(preset);
-          startDownload();
+          setContainer('mp4');
+          if (preset.type === 'video') {
+            setScreen('container-picker');
+          } else {
+            startDownload();
+          }
         }}
         onBack={() => {
           setScreen('welcome');
           setFormat(null);
         }}
+      />
+    );
+  }
+
+  if (screen === 'resolution-picker' && videoInfo) {
+    return (
+      <CustomResolutionPicker
+        videoInfo={videoInfo}
+        onNext={(height) => {
+          setFormat(createResolutionPreset(height));
+          setContainer('mp4');
+          setScreen('container-picker');
+        }}
+        onBack={() => setScreen('format-picker')}
+      />
+    );
+  }
+
+  if (screen === 'container-picker' && videoInfo && format) {
+    return (
+      <ContainerPicker
+        videoInfo={videoInfo}
+        presetLabel={format.label}
+        onNext={(nextContainer) => {
+          setContainer(nextContainer);
+          startDownload();
+        }}
+        onBack={() => setScreen('format-picker')}
       />
     );
   }

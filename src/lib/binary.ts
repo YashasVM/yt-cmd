@@ -1,11 +1,18 @@
 import { constants as fsConstants } from 'node:fs';
-import { access, chmod, mkdir } from 'node:fs/promises';
+import { access, chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { getAppDirectory } from '../constants.js';
 import { YtDlpWrap } from './yt-dlp.js';
 
 export type BinaryStatusHandler = (message: string | null) => void;
+
+const execFileAsync = promisify(execFile);
+const UPDATE_MARKER_FILE = '.yt-dlp-last-update';
+const UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const SELF_UPDATE_TIMEOUT_MS = 120_000;
 
 let resolvedBinaryPath: string | null = null;
 let pendingBinaryResolution: Promise<string> | null = null;
@@ -79,6 +86,72 @@ export async function resolveYtDlpBinary(onStatus?: BinaryStatusHandler) {
   return pendingBinaryResolution;
 }
 
-export function prewarmYtDlpBinary() {
-  return resolveYtDlpBinary().catch(() => undefined);
+function getUpdateMarkerPath() {
+  return path.join(getAppDirectory(), UPDATE_MARKER_FILE);
+}
+
+async function isUpdateCheckDue() {
+  try {
+    const raw = await readFile(getUpdateMarkerPath(), 'utf8');
+    const lastCheck = Number.parseInt(raw.trim(), 10);
+    if (!Number.isFinite(lastCheck)) {
+      return true;
+    }
+
+    return Date.now() - lastCheck >= UPDATE_INTERVAL_MS;
+  } catch {
+    return true;
+  }
+}
+
+async function markUpdateChecked() {
+  try {
+    await mkdir(path.dirname(getUpdateMarkerPath()), { recursive: true });
+    await writeFile(getUpdateMarkerPath(), String(Date.now()), 'utf8');
+  } catch {
+    // A missed marker only means we check again next launch.
+  }
+}
+
+async function selfUpdate(binaryPath: string) {
+  await execFileAsync(binaryPath, ['-U'], {
+    windowsHide: true,
+    timeout: SELF_UPDATE_TIMEOUT_MS,
+  });
+}
+
+/**
+ * Keeps the cached yt-dlp binary fresh. YouTube breaks older releases with
+ * HTTP 403 errors, so the binary is self-updated at most once a day.
+ */
+export async function updateYtDlpIfStale(onStatus?: BinaryStatusHandler) {
+  const binaryPath = await resolveYtDlpBinary(onStatus);
+
+  if (!(await isUpdateCheckDue())) {
+    return false;
+  }
+
+  onStatus?.('Updating yt-dlp...');
+  try {
+    await selfUpdate(binaryPath);
+  } catch {
+    // Self-update failures (offline, no permissions) are non-fatal; the
+    // existing binary keeps working until it stops, then it is re-fetched.
+  } finally {
+    onStatus?.(null);
+    await markUpdateChecked();
+  }
+
+  if (!(await isWorkingBinary(binaryPath))) {
+    throw new Error('yt-dlp stopped working after an update attempt.');
+  }
+
+  return true;
+}
+
+export function prewarmYtDlpBinary(onStatus?: BinaryStatusHandler) {
+  return updateYtDlpIfStale(onStatus).then(
+    () => true,
+    () => false,
+  );
 }

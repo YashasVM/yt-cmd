@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { Spinner } from '@inkjs/ui';
 import {
@@ -79,73 +79,52 @@ export function DependencyCheck({ onReady }: { onReady: () => void }) {
   const [phase, setPhase] = useState<'checking' | 'needs-install' | 'installing' | 'ready' | 'failed'>('checking');
   const [failMessage, setFailMessage] = useState<string | null>(null);
 
-  const updateDep = useCallback((name: string, patch: Partial<DepEntry>) => {
-    setDeps((prev) =>
-      prev.map((d) => (d.name === name ? { ...d, ...patch } : d)),
-    );
-  }, []);
-
   // Phase 1: Check all dependencies
   useEffect(() => {
     if (phase !== 'checking') return;
 
     void (async () => {
-      // Node.js — always available
       const nodeResult = checkNodeVersion();
-      updateDep('Node.js', {
+      const node: DepEntry = {
+        name: 'Node.js',
         status: nodeResult.available ? 'found' : 'missing',
         version: nodeResult.version,
-      });
+      };
 
-      // yt-dlp
       const ytdlpResult = checkYtDlp();
+      let ytdlp: DepEntry;
       if (ytdlpResult.available) {
-        updateDep('yt-dlp', { status: 'found', version: ytdlpResult.version });
+        ytdlp = { name: 'yt-dlp', status: 'found', version: ytdlpResult.version };
       } else {
-        // The app already auto-downloads yt-dlp via binary.ts, so mark as installing
-        updateDep('yt-dlp', { status: 'installing' });
-        try {
-          await prewarmYtDlpBinary();
-          updateDep('yt-dlp', { status: 'installed' });
-        } catch {
-          updateDep('yt-dlp', { status: 'failed', error: 'Could not download yt-dlp binary.' });
-        }
+        ytdlp = (await prewarmYtDlpBinary())
+          ? { name: 'yt-dlp', status: 'installed' }
+          : { name: 'yt-dlp', status: 'failed', error: 'Could not download yt-dlp binary.' };
       }
 
-      // ffmpeg
       const ffmpegResult = checkFfmpeg();
-      if (ffmpegResult.available) {
-        updateDep('ffmpeg', { status: 'found', version: ffmpegResult.version });
-      } else {
-        updateDep('ffmpeg', { status: 'missing' });
-      }
+      const ffmpeg: DepEntry = ffmpegResult.available
+        ? { name: 'ffmpeg', status: 'found', version: ffmpegResult.version }
+        : { name: 'ffmpeg', status: 'missing' };
+      const nextDeps = [node, ytdlp, ffmpeg];
+      setDeps(nextDeps);
 
-      // Decide next phase
-      setDeps((current) => {
-        const hasFailed = current.some((d) => d.status === 'failed');
-        const ffmpegMissing = current.find((d) => d.name === 'ffmpeg')?.status === 'missing';
-
-        if (hasFailed) {
-          setPhase('failed');
-          setFailMessage('A required dependency could not be installed.');
-        } else if (ffmpegMissing) {
-          const canAutoInstall = getFfmpegInstallCommand() !== null;
-          if (canAutoInstall) {
-            setPhase('needs-install');
-          } else {
-            setPhase('failed');
-            setFailMessage(
-              'ffmpeg is not installed. Install it manually:\n  sudo apt install ffmpeg  (Debian/Ubuntu)\n  sudo pacman -S ffmpeg    (Arch)\n  sudo dnf install ffmpeg  (Fedora)',
-            );
-          }
+      if (!nodeResult.available || ytdlp.status === 'failed') {
+        setFailMessage(!nodeResult.available ? 'Node.js 22 or newer is required.' : 'Could not download yt-dlp binary.');
+        setPhase('failed');
+      } else if (!ffmpegResult.available) {
+        if (getFfmpegInstallCommand()) {
+          setPhase('needs-install');
         } else {
-          setPhase('ready');
+          setFailMessage(
+            'ffmpeg is not installed. Install it manually:\n  sudo apt install ffmpeg  (Debian/Ubuntu)\n  sudo pacman -S ffmpeg    (Arch)\n  sudo dnf install ffmpeg  (Fedora)',
+          );
+          setPhase('failed');
         }
-
-        return current;
-      });
+      } else {
+        setPhase('ready');
+      }
     })();
-  }, [phase, updateDep]);
+  }, [phase]);
 
   // Auto-proceed when ready
   useEffect(() => {
@@ -158,25 +137,26 @@ export function DependencyCheck({ onReady }: { onReady: () => void }) {
   useInput((input, key) => {
     if (phase === 'needs-install' && input.toLowerCase() === 'y') {
       setPhase('installing');
-      updateDep('ffmpeg', { status: 'installing' });
+      setDeps((current) => current.map((dep) => (
+        dep.name === 'ffmpeg' ? { ...dep, status: 'installing' } : dep
+      )));
 
       void installFfmpeg((line) => {
         setInstallLog((prev) => [...prev.slice(-8), line]);
       }).then((result) => {
         if (result.success) {
-          updateDep('ffmpeg', { status: 'installed' });
+          setDeps((current) => current.map((dep) => (
+            dep.name === 'ffmpeg' ? { ...dep, status: 'installed' } : dep
+          )));
           setPhase('ready');
         } else {
-          updateDep('ffmpeg', { status: 'failed', error: result.error });
+          setDeps((current) => current.map((dep) => (
+            dep.name === 'ffmpeg' ? { ...dep, status: 'failed', error: result.error } : dep
+          )));
           setPhase('failed');
           setFailMessage(result.error ?? 'ffmpeg installation failed.');
         }
       });
-    }
-
-    if (phase === 'needs-install' && input.toLowerCase() === 'n') {
-      // Let them continue without ffmpeg — some presets don't need it
-      setPhase('ready');
     }
 
     if (phase === 'failed' && key.return) {
@@ -225,10 +205,10 @@ export function DependencyCheck({ onReady }: { onReady: () => void }) {
         {phase === 'needs-install' ? (
           <Box marginTop={1} flexDirection="column">
             <Text color="yellow">
-              ffmpeg is needed for most formats.
+              ffmpeg is needed for downloads.
             </Text>
             <Text color="gray">
-              Install it now? <Text bold color="white">[Y]</Text>es / <Text bold color="white">[N]</Text>o (continue without)
+              Install it now? <Text bold color="white">[Y]</Text>es
             </Text>
           </Box>
         ) : null}

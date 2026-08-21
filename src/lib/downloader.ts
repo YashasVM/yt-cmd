@@ -1,6 +1,6 @@
 import { mkdir, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
-import type { FormatPreset } from '../constants.js';
+import type { ContainerFormat, FormatPreset } from '../constants.js';
 import {
   getDefaultDownloadDirectory,
   OUTPUT_TEMPLATE,
@@ -54,6 +54,42 @@ export class DownloadCancelledError extends Error {
     this.name = 'DownloadCancelledError';
   }
 }
+
+export class YtDlpProcessError extends Error {
+  readonly exitCode: number | null;
+  readonly stderr: string;
+
+  constructor(exitCode: number | null, stderr: string) {
+    const tail = stderr
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(-3)
+      .join('\n');
+
+    super(
+      tail
+        ? `yt-dlp exited with code ${exitCode ?? 'unknown'}.\n${tail}`
+        : `yt-dlp exited with code ${exitCode ?? 'unknown'}.`,
+    );
+    this.name = 'YtDlpProcessError';
+    this.exitCode = exitCode;
+    this.stderr = stderr;
+  }
+
+  get isForbidden() {
+    return /403|forbidden/i.test(this.stderr);
+  }
+}
+
+// YouTube sometimes rejects streams with HTTP 403 for specific player
+// clients; retrying with alternate clients resolves most of these cases.
+const FORBIDDEN_RETRY_ARGS = [
+  '--extractor-args',
+  'youtube:player_client=tv,mweb',
+  '--force-ipv4',
+] as const;
+
 
 const METADATA_TIMEOUT_MS = 20_000;
 const YTDLP_METADATA_ARGS = [
@@ -275,11 +311,13 @@ export function downloadVideo({
   url,
   preset,
   videoInfo,
+  container = 'mp4',
   outputDirectory = getDefaultDownloadDirectory(),
 }: {
   url: string;
   preset: FormatPreset;
   videoInfo: VideoInfo;
+  container?: ContainerFormat;
   outputDirectory?: string;
 }, callbacks: DownloadCallbacks = {}): DownloadTask {
   const safeUrl = normalizeAndValidateVideoUrl(url);
@@ -308,74 +346,117 @@ export function downloadVideo({
     const binaryPath = await resolveYtDlpBinary(callbacks.onBinaryStatus);
     const ytDlp = new YtDlpWrap(binaryPath);
 
-    // Build args — video presets always merge to mp4 (mkv fallback)
+    // Video and audio streams are merged into the chosen container.
     const formatArgs = [...preset.args];
     if (preset.type === 'video') {
-      formatArgs.push('--merge-output-format', 'mp4/mkv');
+      formatArgs.push('--merge-output-format', container);
     }
 
-    const args = [
+    const baseArgs = [
       ...YTDLP_COMMON_ARGS,
       ...formatArgs,
       '--paths',
       outputDirectory,
       '-o',
       OUTPUT_TEMPLATE,
-      '--',
-      safeUrl,
     ];
 
-    emitter = ytDlp.exec(args, undefined, controller.signal);
+    const runAttempt = (extraArgs: readonly string[]) =>
+      new Promise<void>((resolve, reject) => {
+        const stderrChunks: string[] = [];
 
-    emitter.on('ytDlpEvent', (eventType: string, eventData: string) => {
-      const candidate = extractOutputPath(eventData);
-      if (candidate) {
-        knownOutputPath = path.isAbsolute(candidate)
-          ? candidate
-          : path.join(outputDirectory, candidate);
-        callbacks.onOutputPath?.(knownOutputPath);
+        // Options must come before `--`; otherwise yt-dlp reads fallback
+        // options as additional URLs and never switches clients.
+        emitter = ytDlp.exec(
+          [...baseArgs, ...extraArgs, '--', safeUrl],
+          undefined,
+          controller.signal,
+        );
+
+        emitter.on('ytDlpEvent', (eventType: string, eventData: string) => {
+          if (eventType === 'stderr') {
+            stderrChunks.push(eventData);
+          }
+
+          const candidate = extractOutputPath(eventData);
+          if (candidate) {
+            knownOutputPath = path.isAbsolute(candidate)
+              ? candidate
+              : path.join(outputDirectory, candidate);
+            callbacks.onOutputPath?.(knownOutputPath);
+          }
+
+          if (eventType !== 'download') {
+            return;
+          }
+
+          const parsedProgress = parseDownloadProgressEvent(eventData);
+          if (parsedProgress) {
+            latestProgress = {
+              ...latestProgress,
+              ...parsedProgress,
+              percent: parsedProgress.percent ?? latestProgress.percent,
+            };
+            callbacks.onProgress?.(latestProgress);
+          }
+        });
+
+        emitter.once('error', (error) => {
+          reject(
+            wasCancelled
+              ? new DownloadCancelledError()
+              : new YtDlpProcessError(null, `${stderrChunks.join('')}\n${error.message}`),
+          );
+        });
+        emitter.once('close', (code: number | null) => {
+          if (code === 0) {
+            resolve();
+            return;
+          }
+
+          reject(
+            wasCancelled
+              ? new DownloadCancelledError()
+              : new YtDlpProcessError(code, stderrChunks.join('')),
+          );
+        });
+      });
+
+    try {
+      try {
+        await runAttempt([]);
+      } catch (error) {
+        const retryable =
+          error instanceof YtDlpProcessError &&
+          error.isForbidden &&
+          !wasCancelled &&
+          !controller.signal.aborted;
+
+        if (!retryable) {
+          throw error;
+        }
+
+        // A rejected stream usually leaves partial files behind; clear them
+        // so the retry starts from a clean slate.
+        await cleanupPartialFiles(outputDirectory, videoInfo.id);
+        knownOutputPath = undefined;
+        latestProgress = { percent: 0 };
+        await runAttempt(FORBIDDEN_RETRY_ARGS);
       }
 
-      if (eventType !== 'download') {
-        return;
-      }
+      const resultPath =
+        knownOutputPath ?? (await findCompletedFile(outputDirectory, videoInfo.id));
 
-      const parsedProgress = parseDownloadProgressEvent(eventData);
-      if (parsedProgress) {
-        latestProgress = {
-          ...latestProgress,
-          ...parsedProgress,
-          percent: parsedProgress.percent ?? latestProgress.percent,
-        };
-        callbacks.onProgress?.(latestProgress);
-      }
-    });
-
-    const code = await new Promise<number | null>((resolve, reject) => {
-      emitter?.once('error', reject);
-      emitter?.once('close', resolve);
-    });
-
-    if (code !== 0) {
-      if (wasCancelled) {
-        throw new DownloadCancelledError();
-      }
-
-      throw new Error(`yt-dlp exited with code ${code ?? 'unknown'}.`);
+      return {
+        filePath: resultPath,
+        outputDirectory,
+        title: videoInfo.title,
+      };
+    } catch (error) {
+      await cleanup();
+      throw error;
     }
-
-    const resolvedPath =
-      knownOutputPath ?? (await findCompletedFile(outputDirectory, videoInfo.id));
-
-    return {
-      filePath: resolvedPath,
-      outputDirectory,
-      title: videoInfo.title,
-    };
-  })().catch(async (error) => {
-    await cleanup();
-    throw error;
-  });
+  })();
 
   return {
     promise,
